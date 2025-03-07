@@ -3,12 +3,13 @@ const multer = require('multer');
 const router = express.Router();
 const Design = require('../models/carouselModel');
 const ImageKit = require('imagekit');
+require("dotenv").config();
 
 // Configure ImageKit
 const imagekit = new ImageKit({
-  publicKey: "public_PQEb/Jdu0T+AWgAwuDVCC9M9Rs4=",
-  privateKey: "private_ZtO9wD0HKRR89aetxllGUQaFhgg=",
-  urlEndpoint: "https://ik.imagekit.io/hzyuadmua",
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
 });
 
 // Configure multer for file upload
