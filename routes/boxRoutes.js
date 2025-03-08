@@ -23,6 +23,22 @@ router.post('/add', async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+router.get('/get', async (req, res) => {
+    try {
+        const boxes = await Box.find(); // Retrieve all boxes from the database
+
+        if (!boxes || boxes.length === 0) {
+            return res.status(404).json({ error: "No boxes found" });
+        }
+
+        res.status(200).json({ message: "Boxes retrieved successfully", data: boxes });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 
 // PUT: Update an existing box
 router.put('/update/:id', async (req, res) => {
