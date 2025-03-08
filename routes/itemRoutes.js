@@ -56,6 +56,47 @@ router.post('/add', upload.single('image'), async (req, res) => {
     }
 });
 
+router.get('/get/:id?', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (id) {
+            const item = await Item.findById(id);
+            if (!item) {
+                return res.status(404).json({ error: "Item not found" });
+            }
+            return res.status(200).json({ data: item });
+        }
+
+        const items = await Item.find();
+        res.status(200).json({ data: items });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+router.get('/get', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (id) {
+            const item = await Item.findById(id);
+            if (!item) {
+                return res.status(404).json({ error: "Item not found" });
+            }
+            return res.status(200).json({ data: item });
+        }
+
+        const items = await Item.find();
+        res.status(200).json({ data: items });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 // PUT: Update an existing item
 router.put('/update/:id', upload.single('image'), async (req, res) => {
     try {
