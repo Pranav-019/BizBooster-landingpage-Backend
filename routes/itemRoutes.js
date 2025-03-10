@@ -21,7 +21,9 @@ const upload = multer({ storage: storage });
 const ItemSchema = new mongoose.Schema({
     heading: String,
     image: String,
-    features: [String]
+    features: { type: [String], default: [] }, // Optional, defaults to an empty array
+    category: { type: String, default: null }, // Optional, defaults to null
+    description: String // Added description field
 });
 
 const Item = mongoose.model('Item', ItemSchema);
@@ -29,8 +31,10 @@ const Item = mongoose.model('Item', ItemSchema);
 // POST: Add a new item
 router.post('/add', upload.single('image'), async (req, res) => {
     try {
-        const { heading, features } = req.body;
-        const featureList = JSON.parse(features);
+        const { heading, features, category, description } = req.body;
+
+        // Parse features if provided, otherwise default to an empty array
+        const featureList = features ? JSON.parse(features) : [];
 
         if (!req.file) {
             return res.status(400).json({ error: "Image is required" });
@@ -44,7 +48,9 @@ router.post('/add', upload.single('image'), async (req, res) => {
         const newItem = new Item({
             heading,
             image: uploadedImage.url,
-            features: featureList
+            features: featureList, // Optional, defaults to an empty array
+            category: category || null, // Optional, defaults to null
+            description // Added description
         });
 
         await newItem.save();
@@ -56,6 +62,7 @@ router.post('/add', upload.single('image'), async (req, res) => {
     }
 });
 
+// GET: Retrieve all items or a specific item by ID
 router.get('/get/:id?', async (req, res) => {
     try {
         const { id } = req.params;
@@ -77,32 +84,23 @@ router.get('/get/:id?', async (req, res) => {
     }
 });
 
-router.get('/get', async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        if (id) {
-            const item = await Item.findById(id);
-            if (!item) {
-                return res.status(404).json({ error: "Item not found" });
-            }
-            return res.status(200).json({ data: item });
-        }
-
-        const items = await Item.find();
-        res.status(200).json({ data: items });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
 // PUT: Update an existing item
 router.put('/update/:id', upload.single('image'), async (req, res) => {
     try {
-        const { heading, features } = req.body;
+        const { heading, features, category, description } = req.body;
+
+        // Parse features if provided, otherwise keep existing features
         const featureList = features ? JSON.parse(features) : undefined;
-        let updateData = { heading, features: featureList };
+
+        let updateData = { heading, description }; // Always update heading and description
+
+        // Update features and category only if provided
+        if (featureList !== undefined) {
+            updateData.features = featureList;
+        }
+        if (category !== undefined) {
+            updateData.category = category;
+        }
 
         if (req.file) {
             const uploadedImage = await imagekit.upload({
