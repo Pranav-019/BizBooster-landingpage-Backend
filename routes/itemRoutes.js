@@ -62,6 +62,16 @@ router.post('/add', upload.single('image'), async (req, res) => {
     }
 });
 
+router.get('/get', async (req, res) => {
+    try {
+        const items = await Item.find();
+        res.status(200).json({ data: items });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 // GET: Retrieve all items or a specific item by ID
 router.get('/get/:id?', async (req, res) => {
     try {
