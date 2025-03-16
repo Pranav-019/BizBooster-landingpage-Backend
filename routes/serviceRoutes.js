@@ -2,12 +2,11 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const ImageKit = require('imagekit');
-const fs = require('fs');
-const path = require('path');
 const Service = require('../models/service');
 
-// Multer setup for file uploads
-const upload = multer({ dest: 'uploads/' });
+// Use memory storage for Multer (no local uploads folder needed)
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // ImageKit configuration
 const imagekit = new ImageKit({
@@ -23,14 +22,11 @@ router.post('/submit-service', upload.single('file'), async (req, res) => {
 
     // Upload file to ImageKit if file is present
     if (req.file) {
-      const filePath = path.join(__dirname, '..', req.file.path);
       const imagekitResponse = await imagekit.upload({
-        file: fs.readFileSync(filePath),
+        file: req.file.buffer, // Directly using in-memory buffer
         fileName: req.file.originalname,
       });
 
-      // Delete local temp file
-      fs.unlinkSync(filePath);
       fileUrl = imagekitResponse.url;
     }
 
