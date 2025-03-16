@@ -7,6 +7,8 @@ const carouselRoutes = require("./routes/carouselRoutes");
 const itemRoutes = require("./routes/itemRoutes");
 const boxRoutes = require("./routes/boxRoutes");
 const businessRoute = require('./routes/businessRoute');
+const serviceRoute = require('./routes/serviceRoutes');
+
 
 dotenv.config();
 connectDB();
@@ -20,6 +22,7 @@ app.use("/api/images", carouselRoutes);
 app.use("/api/item", itemRoutes);
 app.use("/api/box", boxRoutes);
 app.use('/api/business', businessRoute);
+app.use('/api/service', serviceRoute);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
