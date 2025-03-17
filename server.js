@@ -10,6 +10,7 @@ const businessRoute = require('./routes/businessRoute');
 const serviceRoute = require('./routes/serviceRoutes');
 const testimonialRoutes = require('./routes/testimonialRoutes');
 const videoUploadRoutes = require('./routes/videoUploadRoutes');
+const contactUsRoutes = require('./routes/contactUsRoutes');
 
 
 dotenv.config();
@@ -27,6 +28,7 @@ app.use('/api/business', businessRoute);
 app.use('/api/service', serviceRoute);
 app.use('/api/testimonial', testimonialRoutes);
 app.use('/api/videos', videoUploadRoutes);
+app.use('/api/contact', contactUsRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
