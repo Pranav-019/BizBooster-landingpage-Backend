@@ -11,6 +11,7 @@ const serviceRoute = require('./routes/serviceRoutes');
 const testimonialRoutes = require('./routes/testimonialRoutes');
 const videoUploadRoutes = require('./routes/videoUploadRoutes');
 const contactUsRoutes = require('./routes/contactUsRoutes');
+const contentSectionRoutes = require('./routes/contentSectionRoutes');
 
 
 dotenv.config();
@@ -29,6 +30,8 @@ app.use('/api/service', serviceRoute);
 app.use('/api/testimonial', testimonialRoutes);
 app.use('/api/videos', videoUploadRoutes);
 app.use('/api/contact', contactUsRoutes);
+app.use('/api/content', contentSectionRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
