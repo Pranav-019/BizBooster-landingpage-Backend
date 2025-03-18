@@ -13,16 +13,18 @@ const imagekit = new ImageKit({
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
 });
 
-// Configure Multer for file uploads (in memory)
+// Configure Multer for memory storage
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+});
 
 // Mongoose Schema - All fields optional
 const ItemSchema = new mongoose.Schema({
   heading: { type: String, default: null },
   subheading: { type: String, default: null },
   image: { type: String, default: null },
-  arrayofimage: { type: [String], default: [] }, // New optional field
+  arrayofimage: { type: [String], default: [] },
   features: { type: [String], default: [] },
   category: { type: String, default: null },
   description: { type: String, default: null },
@@ -34,7 +36,10 @@ const ItemSchema = new mongoose.Schema({
 const Item = mongoose.model('Item', ItemSchema);
 
 // POST: Add a new item
-router.post('/add', upload.single('image'), async (req, res) => {
+router.post('/add', upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'arrayofimage', maxCount: 10 }
+]), async (req, res) => {
   try {
     const {
       heading,
@@ -44,21 +49,33 @@ router.post('/add', upload.single('image'), async (req, res) => {
       description,
       earning,
       requirements,
-      feature2,
-      arrayofimage
+      feature2
     } = req.body;
 
     const featureList = features ? JSON.parse(features) : [];
     const feature2List = feature2 ? JSON.parse(feature2) : [];
-    const arrayOfImagesList = arrayofimage ? JSON.parse(arrayofimage) : [];
 
     let imageUrl = null;
-    if (req.file) {
+    let arrayOfImagesList = [];
+
+    // Upload main image (single)
+    if (req.files.image && req.files.image.length > 0) {
       const uploadedImage = await imagekit.upload({
-        file: req.file.buffer,
-        fileName: req.file.originalname
+        file: req.files.image[0].buffer,
+        fileName: req.files.image[0].originalname
       });
       imageUrl = uploadedImage.url;
+    }
+
+    // Upload array of images (multiple)
+    if (req.files.arrayofimage && req.files.arrayofimage.length > 0) {
+      for (const img of req.files.arrayofimage) {
+        const uploaded = await imagekit.upload({
+          file: img.buffer,
+          fileName: img.originalname
+        });
+        arrayOfImagesList.push(uploaded.url);
+      }
     }
 
     const newItem = new Item({
@@ -113,7 +130,10 @@ router.get('/get/:id?', async (req, res) => {
 });
 
 // PUT: Update an existing item
-router.put('/update/:id', upload.single('image'), async (req, res) => {
+router.put('/update/:id', upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'arrayofimage', maxCount: 10 }
+]), async (req, res) => {
   try {
     const {
       heading,
@@ -123,8 +143,7 @@ router.put('/update/:id', upload.single('image'), async (req, res) => {
       description,
       earning,
       requirements,
-      feature2,
-      arrayofimage
+      feature2
     } = req.body;
 
     const updateData = {};
@@ -137,14 +156,27 @@ router.put('/update/:id', upload.single('image'), async (req, res) => {
     if (category !== undefined) updateData.category = category;
     if (features !== undefined) updateData.features = JSON.parse(features);
     if (feature2 !== undefined) updateData.feature2 = JSON.parse(feature2);
-    if (arrayofimage !== undefined) updateData.arrayofimage = JSON.parse(arrayofimage);
 
-    if (req.file) {
+    // Upload new image if provided
+    if (req.files.image && req.files.image.length > 0) {
       const uploadedImage = await imagekit.upload({
-        file: req.file.buffer,
-        fileName: req.file.originalname
+        file: req.files.image[0].buffer,
+        fileName: req.files.image[0].originalname
       });
       updateData.image = uploadedImage.url;
+    }
+
+    // Upload arrayofimage if provided
+    if (req.files.arrayofimage && req.files.arrayofimage.length > 0) {
+      const arrayOfImagesList = [];
+      for (const img of req.files.arrayofimage) {
+        const uploaded = await imagekit.upload({
+          file: img.buffer,
+          fileName: img.originalname
+        });
+        arrayOfImagesList.push(uploaded.url);
+      }
+      updateData.arrayofimage = arrayOfImagesList;
     }
 
     const updatedItem = await Item.findByIdAndUpdate(req.params.id, updateData, { new: true });
