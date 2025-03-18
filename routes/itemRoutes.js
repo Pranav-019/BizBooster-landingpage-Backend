@@ -13,13 +13,14 @@ const imagekit = new ImageKit({
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
 });
 
-// Configure Multer for file handling
+// Configure Multer for file uploads (in memory)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Mongoose Schema (All Fields Optional)
+// Mongoose Schema - All fields optional
 const ItemSchema = new mongoose.Schema({
   heading: { type: String, default: null },
+  subheading: { type: String, default: null }, // New optional field
   image: { type: String, default: null },
   features: { type: [String], default: [] },
   category: { type: String, default: null },
@@ -34,7 +35,16 @@ const Item = mongoose.model('Item', ItemSchema);
 // POST: Add a new item
 router.post('/add', upload.single('image'), async (req, res) => {
   try {
-    const { heading, features, category, description, earning, requirements, feature2 } = req.body;
+    const {
+      heading,
+      subheading,
+      features,
+      category,
+      description,
+      earning,
+      requirements,
+      feature2
+    } = req.body;
 
     const featureList = features ? JSON.parse(features) : [];
     const feature2List = feature2 ? JSON.parse(feature2) : [];
@@ -50,6 +60,7 @@ router.post('/add', upload.single('image'), async (req, res) => {
 
     const newItem = new Item({
       heading,
+      subheading,
       image: imageUrl,
       features: featureList,
       category,
@@ -79,7 +90,7 @@ router.get('/get', async (req, res) => {
   }
 });
 
-// GET by ID (optional)
+// GET item by ID (optional)
 router.get('/get/:id?', async (req, res) => {
   try {
     const { id } = req.params;
@@ -97,14 +108,24 @@ router.get('/get/:id?', async (req, res) => {
   }
 });
 
-// PUT: Update existing item
+// PUT: Update an existing item
 router.put('/update/:id', upload.single('image'), async (req, res) => {
   try {
-    const { heading, features, category, description, earning, requirements, feature2 } = req.body;
+    const {
+      heading,
+      subheading,
+      features,
+      category,
+      description,
+      earning,
+      requirements,
+      feature2
+    } = req.body;
 
     const updateData = {};
 
     if (heading !== undefined) updateData.heading = heading;
+    if (subheading !== undefined) updateData.subheading = subheading;
     if (description !== undefined) updateData.description = description;
     if (earning !== undefined) updateData.earning = earning;
     if (requirements !== undefined) updateData.requirements = requirements;
@@ -134,7 +155,7 @@ router.put('/update/:id', upload.single('image'), async (req, res) => {
   }
 });
 
-// DELETE item
+// DELETE: Remove an item
 router.delete('/delete/:id', async (req, res) => {
   try {
     const deletedItem = await Item.findByIdAndDelete(req.params.id);
