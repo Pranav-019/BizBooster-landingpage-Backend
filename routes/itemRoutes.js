@@ -20,8 +20,9 @@ const upload = multer({ storage: storage });
 // Mongoose Schema - All fields optional
 const ItemSchema = new mongoose.Schema({
   heading: { type: String, default: null },
-  subheading: { type: String, default: null }, // New optional field
+  subheading: { type: String, default: null },
   image: { type: String, default: null },
+  arrayofimage: { type: [String], default: [] }, // New optional field
   features: { type: [String], default: [] },
   category: { type: String, default: null },
   description: { type: String, default: null },
@@ -43,11 +44,13 @@ router.post('/add', upload.single('image'), async (req, res) => {
       description,
       earning,
       requirements,
-      feature2
+      feature2,
+      arrayofimage
     } = req.body;
 
     const featureList = features ? JSON.parse(features) : [];
     const feature2List = feature2 ? JSON.parse(feature2) : [];
+    const arrayOfImagesList = arrayofimage ? JSON.parse(arrayofimage) : [];
 
     let imageUrl = null;
     if (req.file) {
@@ -62,6 +65,7 @@ router.post('/add', upload.single('image'), async (req, res) => {
       heading,
       subheading,
       image: imageUrl,
+      arrayofimage: arrayOfImagesList,
       features: featureList,
       category,
       description,
@@ -119,7 +123,8 @@ router.put('/update/:id', upload.single('image'), async (req, res) => {
       description,
       earning,
       requirements,
-      feature2
+      feature2,
+      arrayofimage
     } = req.body;
 
     const updateData = {};
@@ -132,6 +137,7 @@ router.put('/update/:id', upload.single('image'), async (req, res) => {
     if (category !== undefined) updateData.category = category;
     if (features !== undefined) updateData.features = JSON.parse(features);
     if (feature2 !== undefined) updateData.feature2 = JSON.parse(feature2);
+    if (arrayofimage !== undefined) updateData.arrayofimage = JSON.parse(arrayofimage);
 
     if (req.file) {
       const uploadedImage = await imagekit.upload({
