@@ -15,7 +15,8 @@ const CategorySchema = new mongoose.Schema({
 
 // Main ServicePage schema
 const ServicePageSchema = new mongoose.Schema({
-  servicetitle: { type: String, required: true },  // ✅ New field
+  servicetitle: { type: String, required: true },
+  serviceImage: { type: String, required: true }, // ✅ New field added
   titleDescArray: [TitleDescriptionSchema],
   categoryname: [CategorySchema],
 });
