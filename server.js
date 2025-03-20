@@ -12,7 +12,7 @@ const testimonialRoutes = require('./routes/testimonialRoutes');
 const videoUploadRoutes = require('./routes/videoUploadRoutes');
 const contactUsRoutes = require('./routes/contactUsRoutes');
 const contentSectionRoutes = require('./routes/contentSectionRoutes');
-
+const servicepageroutes = require('./routes/servicepageroutes')
 
 dotenv.config();
 connectDB();
@@ -31,6 +31,7 @@ app.use('/api/testimonial', testimonialRoutes);
 app.use('/api/videos', videoUploadRoutes);
 app.use('/api/contact', contactUsRoutes);
 app.use('/api/content', contentSectionRoutes);
+app.use('/api/page', servicepageroutes);
 
 
 const PORT = process.env.PORT || 5000;
