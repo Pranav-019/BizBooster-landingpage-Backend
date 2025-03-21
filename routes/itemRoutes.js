@@ -6,20 +6,18 @@ require("dotenv").config();
 
 const router = express.Router();
 
-// Configure ImageKit
+// ImageKit Configuration
 const imagekit = new ImageKit({
   publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
   privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
 });
 
-// Configure Multer for memory storage
+// Multer Setup
 const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-});
+const upload = multer({ storage: storage });
 
-// Mongoose Schema - All fields optional
+// Mongoose Schema
 const ItemSchema = new mongoose.Schema({
   heading: { type: String, default: null },
   subheading: { type: String, default: null },
@@ -35,21 +33,15 @@ const ItemSchema = new mongoose.Schema({
 
 const Item = mongoose.model('Item', ItemSchema);
 
-// POST: Add a new item
+// POST: Add a new item (with file uploads)
 router.post('/add', upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'arrayofimage', maxCount: 10 }
 ]), async (req, res) => {
   try {
     const {
-      heading,
-      subheading,
-      features,
-      category,
-      description,
-      earning,
-      requirements,
-      feature2
+      heading, subheading, features, category,
+      description, earning, requirements, feature2
     } = req.body;
 
     const featureList = features ? JSON.parse(features) : [];
@@ -58,8 +50,7 @@ router.post('/add', upload.fields([
     let imageUrl = null;
     let arrayOfImagesList = [];
 
-    // Upload main image (single)
-    if (req.files.image && req.files.image.length > 0) {
+    if (req.files?.image?.length > 0) {
       const uploadedImage = await imagekit.upload({
         file: req.files.image[0].buffer,
         fileName: req.files.image[0].originalname
@@ -67,8 +58,7 @@ router.post('/add', upload.fields([
       imageUrl = uploadedImage.url;
     }
 
-    // Upload array of images (multiple)
-    if (req.files.arrayofimage && req.files.arrayofimage.length > 0) {
+    if (req.files?.arrayofimage?.length > 0) {
       for (const img of req.files.arrayofimage) {
         const uploaded = await imagekit.upload({
           file: img.buffer,
@@ -79,86 +69,72 @@ router.post('/add', upload.fields([
     }
 
     const newItem = new Item({
-      heading,
-      subheading,
-      image: imageUrl,
-      arrayofimage: arrayOfImagesList,
-      features: featureList,
-      category,
-      description,
-      earning,
-      requirements,
-      feature2: feature2List
+      heading, subheading, image: imageUrl, arrayofimage: arrayOfImagesList,
+      features: featureList, category, description, earning, requirements, feature2: feature2List
     });
 
     await newItem.save();
     res.status(201).json({ message: "Item created successfully", data: newItem });
-
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('POST /add error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 });
 
-// GET all items
+// GET: Fetch all items
 router.get('/get', async (req, res) => {
   try {
     const items = await Item.find();
     res.status(200).json({ data: items });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('GET /get error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 });
 
-// GET item by ID (optional)
-router.get('/get/:id?', async (req, res) => {
+// GET: Fetch single item by ID
+router.get('/get/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    if (id) {
-      const item = await Item.findById(id);
-      if (!item) return res.status(404).json({ error: "Item not found" });
-      return res.status(200).json({ data: item });
-    }
-
-    const items = await Item.find();
-    res.status(200).json({ data: items });
+    const item = await Item.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Item not found" });
+    res.status(200).json({ data: item });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('GET /get/:id error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 });
 
-// PUT: Update an existing item
+// PUT: Full item update (with file uploads via multer and ImageKit)
 router.put('/update/:id', upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'arrayofimage', maxCount: 10 }
 ]), async (req, res) => {
   try {
+    console.log('PUT /update/:id - Received body:', req.body, 'Files:', req.files); // Debug incoming data
     const {
-      heading,
-      subheading,
-      features,
-      category,
-      description,
-      earning,
-      requirements,
-      feature2
+      heading, subheading, image, arrayofimage, features, category,
+      description, earning, requirements, feature2
     } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid item ID" });
+    }
 
     const updateData = {};
 
     if (heading !== undefined) updateData.heading = heading;
     if (subheading !== undefined) updateData.subheading = subheading;
+    if (image !== undefined) updateData.image = image; // URL or existing value if no file
+    if (arrayofimage !== undefined) updateData.arrayofimage = JSON.parse(arrayofimage); // Parse if sent as string
+    if (features !== undefined) updateData.features = JSON.parse(features);
+    if (category !== undefined) updateData.category = category;
     if (description !== undefined) updateData.description = description;
     if (earning !== undefined) updateData.earning = earning;
     if (requirements !== undefined) updateData.requirements = requirements;
-    if (category !== undefined) updateData.category = category;
-    if (features !== undefined) updateData.features = JSON.parse(features);
     if (feature2 !== undefined) updateData.feature2 = JSON.parse(feature2);
 
-    // Upload new image if provided
-    if (req.files.image && req.files.image.length > 0) {
+    // Handle image upload
+    if (req.files?.image?.length > 0) {
       const uploadedImage = await imagekit.upload({
         file: req.files.image[0].buffer,
         fileName: req.files.image[0].originalname
@@ -166,8 +142,8 @@ router.put('/update/:id', upload.fields([
       updateData.image = uploadedImage.url;
     }
 
-    // Upload arrayofimage if provided
-    if (req.files.arrayofimage && req.files.arrayofimage.length > 0) {
+    // Handle arrayofimage upload
+    if (req.files?.arrayofimage?.length > 0) {
       const arrayOfImagesList = [];
       for (const img of req.files.arrayofimage) {
         const uploaded = await imagekit.upload({
@@ -176,34 +152,92 @@ router.put('/update/:id', upload.fields([
         });
         arrayOfImagesList.push(uploaded.url);
       }
-      updateData.arrayofimage = arrayOfImagesList;
+      updateData.arrayofimage = arrayOfImagesList; // Overwrites existing array
     }
 
     const updatedItem = await Item.findByIdAndUpdate(req.params.id, updateData, { new: true });
-
-    if (!updatedItem) {
-      return res.status(404).json({ error: "Item not found" });
-    }
+    if (!updatedItem) return res.status(404).json({ error: "Item not found" });
 
     res.status(200).json({ message: "Item updated successfully", data: updatedItem });
-
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('PUT /update/:id error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 });
 
-// DELETE: Remove an item
+// PATCH: Add to features/feature2/arrayofimage (with optional file upload)
+router.patch('/add-point/:id', upload.single('image'), async (req, res) => {
+  try {
+    console.log('PATCH /add-point/:id - Received body:', req.body, 'File:', req.file); // Debug
+    const { type, value } = req.body;
+    if (!['features', 'feature2', 'arrayofimage'].includes(type)) {
+      return res.status(400).json({ error: "Invalid type" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid item ID" });
+    }
+
+    let update = {};
+
+    if (type === 'arrayofimage' && req.file) {
+      const uploaded = await imagekit.upload({
+        file: req.file.buffer,
+        fileName: req.file.originalname
+      });
+      update = { $push: { arrayofimage: uploaded.url } };
+    } else if (value) {
+      update = { $push: { [type]: value } };
+    } else {
+      return res.status(400).json({ error: "Value or image required" });
+    }
+
+    const updated = await Item.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!updated) return res.status(404).json({ error: "Item not found" });
+    res.status(200).json({ message: "Point added", data: updated });
+  } catch (error) {
+    console.error('PATCH /add-point/:id error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
+  }
+});
+
+// PATCH: Remove from features/feature2/arrayofimage
+router.patch('/remove-point/:id', async (req, res) => {
+  try {
+    const { type, value } = req.body;
+    if (!['features', 'feature2', 'arrayofimage'].includes(type)) {
+      return res.status(400).json({ error: "Invalid type" });
+    }
+    if (!value) return res.status(400).json({ error: "Value required to remove" });
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid item ID" });
+    }
+
+    const update = { $pull: { [type]: value } };
+    const updated = await Item.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!updated) return res.status(404).json({ error: "Item not found" });
+
+    res.status(200).json({ message: "Point removed", data: updated });
+  } catch (error) {
+    console.error('PATCH /remove-point/:id error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
+  }
+});
+
+// DELETE: Delete item
 router.delete('/delete/:id', async (req, res) => {
   try {
-    const deletedItem = await Item.findByIdAndDelete(req.params.id);
-    if (!deletedItem) {
-      return res.status(404).json({ error: "Item not found" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid item ID" });
     }
+
+    const deletedItem = await Item.findByIdAndDelete(req.params.id);
+    if (!deletedItem) return res.status(404).json({ error: "Item not found" });
     res.status(200).json({ message: "Item deleted successfully" });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error('DELETE /delete/:id error:', error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
   }
 });
 
