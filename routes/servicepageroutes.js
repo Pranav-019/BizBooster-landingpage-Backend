@@ -23,11 +23,10 @@ router.post('/add', upload.fields([
 ]), async (req, res) => {
   try {
     const { servicetitle, titleDescArray, categoryname } = req.body;
-
     const parsedTitleDescArray = JSON.parse(titleDescArray);
     const parsedCategoryData = JSON.parse(categoryname);
 
-    // Upload single serviceImage
+    // Upload serviceImage
     let uploadedServiceImage = '';
     if (req.files['serviceImage'] && req.files['serviceImage'][0]) {
       const uploadServiceImage = await imagekit.upload({
@@ -68,14 +67,13 @@ router.post('/add', upload.fields([
   }
 });
 
-// PUT: Update a service page
+// PUT: Full Update
 router.put('/update/:id', upload.fields([
   { name: 'serviceImage', maxCount: 1 },
   { name: 'images' }
 ]), async (req, res) => {
   try {
     const { servicetitle, titleDescArray, categoryname } = req.body;
-
     const parsedTitleDescArray = JSON.parse(titleDescArray);
     const parsedCategoryData = JSON.parse(categoryname);
 
@@ -112,9 +110,7 @@ router.put('/update/:id', upload.fields([
       categoryname: categorynameWithImages,
     };
 
-    if (uploadedServiceImage) {
-      updatePayload.serviceImage = uploadedServiceImage;
-    }
+    if (uploadedServiceImage) updatePayload.serviceImage = uploadedServiceImage;
 
     const updatedServicePage = await ServicePage.findByIdAndUpdate(
       req.params.id,
@@ -122,11 +118,55 @@ router.put('/update/:id', upload.fields([
       { new: true }
     );
 
-    if (!updatedServicePage) {
-      return res.status(404).json({ error: 'Service Page not found' });
-    }
+    if (!updatedServicePage) return res.status(404).json({ error: 'Service Page not found' });
 
     res.status(200).json({ message: 'Service Page updated successfully', data: updatedServicePage });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// PATCH: Partial Update - Single array item or image
+router.patch('/update-point/:id', upload.single('image'), async (req, res) => {
+  try {
+    const { type, index, field, value } = req.body;
+
+    const servicePage = await ServicePage.findById(req.params.id);
+    if (!servicePage) return res.status(404).json({ error: 'Service Page not found' });
+
+    // Update titleDescArray
+    if (type === 'titleDescArray') {
+      if (servicePage.titleDescArray[index]) {
+        servicePage.titleDescArray[index] = value;
+      } else {
+        return res.status(400).json({ error: 'Invalid index in titleDescArray' });
+      }
+    }
+
+    // Update categoryname array
+    else if (type === 'categoryname') {
+      if (!servicePage.categoryname[index]) {
+        return res.status(400).json({ error: 'Invalid index in categoryname' });
+      }
+
+      if (field === 'image' && req.file) {
+        const uploadedImage = await imagekit.upload({
+          file: req.file.buffer,
+          fileName: req.file.originalname,
+        });
+        servicePage.categoryname[index].image = uploadedImage.url;
+      } else if (field === 'title' || field === 'description') {
+        servicePage.categoryname[index][field] = value;
+      } else {
+        return res.status(400).json({ error: 'Invalid field for categoryname update' });
+      }
+    } else {
+      return res.status(400).json({ error: 'Invalid update type' });
+    }
+
+    await servicePage.save();
+    res.status(200).json({ message: 'Service Page updated successfully', data: servicePage });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal Server Error' });
