@@ -83,38 +83,47 @@ router.put('/update/:id', upload.fields([
     const { id } = req.params;
     const { servicetitle, titleDescArray, categoryname } = req.body;
 
-    // Find existing service
     const existingService = await ServicePage.findById(id);
     if (!existingService) {
       return res.status(404).json({ error: 'Service Page not found' });
     }
 
-    // Parse JSON strings
-    const parsedTitleDescArray = JSON.parse(titleDescArray || '[]');
-    const parsedCategoryData = JSON.parse(categoryname || '[]');
+    // Parse JSON strings with proper error handling
+    let parsedTitleDescArray = [];
+    let parsedCategoryData = [];
+    
+    try {
+      parsedTitleDescArray = JSON.parse(titleDescArray || '[]');
+      parsedCategoryData = JSON.parse(categoryname || '[]');
+    } catch (parseError) {
+      return res.status(400).json({ error: 'Invalid JSON data' });
+    }
 
     // Handle service image update
     let serviceImageUrl = existingService.serviceImage;
     if (req.files?.['serviceImage']?.[0]) {
-      serviceImageUrl = await uploadToImageKit(req.files['serviceImage'][0]);
+      const uploadResult = await uploadToImageKit(req.files['serviceImage'][0]);
+      if (uploadResult) serviceImageUrl = uploadResult;
     }
 
-    // Handle category images update
-    const existingCategoryImages = existingService.categoryname.map(item => item.image);
+    // Handle category images
     const newCategoryImages = req.files?.['categoryImages'] || [];
-    
-    // Upload new category images
     const uploadedCategoryImages = await Promise.all(
       newCategoryImages.map(file => uploadToImageKit(file))
     );
 
-    // Merge existing and new images
+    // Process categories
     const categorynameWithImages = parsedCategoryData.map((item, index) => {
-      // Use new uploaded image if available, otherwise keep existing or use item.image
-      const image = uploadedCategoryImages[index] || 
-                   (item.image && item.image.startsWith('http') ? item.image : '') || 
-                   existingCategoryImages[index] || '';
-      
+      // Determine the image to use
+      let image = '';
+      if (uploadedCategoryImages[index]) {
+        image = uploadedCategoryImages[index]; // New uploaded image
+      } else if (typeof item.image === 'string') {
+        image = item.image; // Existing URL
+      } else if (existingService.categoryname[index]?.image) {
+        image = existingService.categoryname[index].image; // Fallback to existing
+      }
+
       return {
         image,
         title: item.title || '',
