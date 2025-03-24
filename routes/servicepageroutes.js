@@ -16,45 +16,52 @@ const imagekit = new ImageKit({
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+// Helper function to upload files to ImageKit
+const uploadToImageKit = async (file) => {
+  if (!file) return null;
+  try {
+    const uploadResponse = await imagekit.upload({
+      file: file.buffer,
+      fileName: file.originalname,
+    });
+    return uploadResponse.url;
+  } catch (error) {
+    console.error('ImageKit upload error:', error);
+    return null;
+  }
+};
+
 // POST: Add a new service page
 router.post('/add', upload.fields([
   { name: 'serviceImage', maxCount: 1 },
-  { name: 'images' }
+  { name: 'categoryImages', maxCount: 10 }
 ]), async (req, res) => {
   try {
     const { servicetitle, titleDescArray, categoryname } = req.body;
-    const parsedTitleDescArray = JSON.parse(titleDescArray);
-    const parsedCategoryData = JSON.parse(categoryname);
+    
+    // Parse JSON strings
+    const parsedTitleDescArray = JSON.parse(titleDescArray || '[]');
+    const parsedCategoryData = JSON.parse(categoryname || '[]');
 
     // Upload serviceImage
-    let uploadedServiceImage = '';
-    if (req.files['serviceImage'] && req.files['serviceImage'][0]) {
-      const uploadServiceImage = await imagekit.upload({
-        file: req.files['serviceImage'][0].buffer,
-        fileName: req.files['serviceImage'][0].originalname,
-      });
-      uploadedServiceImage = uploadServiceImage.url;
-    }
+    const serviceImageUrl = await uploadToImageKit(req.files?.['serviceImage']?.[0]);
 
     // Upload category images
+    const categoryImages = req.files?.['categoryImages'] || [];
     const uploadedCategoryImages = await Promise.all(
-      (req.files['images'] || []).map(file =>
-        imagekit.upload({
-          file: file.buffer,
-          fileName: file.originalname,
-        })
-      )
+      categoryImages.map(file => uploadToImageKit(file))
     );
 
+    // Map category data with images
     const categorynameWithImages = parsedCategoryData.map((item, index) => ({
-      image: uploadedCategoryImages[index]?.url || '',
-      title: item.title,
-      description: item.description,
+      image: uploadedCategoryImages[index] || item.image || '',
+      title: item.title || '',
+      description: item.description || '',
     }));
 
     const servicePage = new ServicePage({
       servicetitle,
-      serviceImage: uploadedServiceImage,
+      serviceImage: serviceImageUrl || '',
       titleDescArray: parsedTitleDescArray,
       categoryname: categorynameWithImages,
     });
@@ -62,114 +69,146 @@ router.post('/add', upload.fields([
     await servicePage.save();
     res.status(201).json({ message: 'Service Page created successfully', data: servicePage });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error in POST /add:', error);
+    res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 });
 
 // PUT: Full Update
 router.put('/update/:id', upload.fields([
   { name: 'serviceImage', maxCount: 1 },
-  { name: 'images' }
+  { name: 'categoryImages', maxCount: 10 }
 ]), async (req, res) => {
   try {
+    const { id } = req.params;
     const { servicetitle, titleDescArray, categoryname } = req.body;
-    const parsedTitleDescArray = JSON.parse(titleDescArray);
-    const parsedCategoryData = JSON.parse(categoryname);
 
-    let uploadedServiceImage = '';
-    if (req.files['serviceImage'] && req.files['serviceImage'][0]) {
-      const uploadServiceImage = await imagekit.upload({
-        file: req.files['serviceImage'][0].buffer,
-        fileName: req.files['serviceImage'][0].originalname,
-      });
-      uploadedServiceImage = uploadServiceImage.url;
+    // Find existing service
+    const existingService = await ServicePage.findById(id);
+    if (!existingService) {
+      return res.status(404).json({ error: 'Service Page not found' });
     }
 
-    let uploadedCategoryImages = [];
-    if (req.files['images'] && req.files['images'].length > 0) {
-      uploadedCategoryImages = await Promise.all(
-        req.files['images'].map(file =>
-          imagekit.upload({
-            file: file.buffer,
-            fileName: file.originalname,
-          })
-        )
-      );
+    // Parse JSON strings
+    const parsedTitleDescArray = JSON.parse(titleDescArray || '[]');
+    const parsedCategoryData = JSON.parse(categoryname || '[]');
+
+    // Handle service image update
+    let serviceImageUrl = existingService.serviceImage;
+    if (req.files?.['serviceImage']?.[0]) {
+      serviceImageUrl = await uploadToImageKit(req.files['serviceImage'][0]);
     }
 
-    const categorynameWithImages = parsedCategoryData.map((item, index) => ({
-      image: uploadedCategoryImages[index]?.url || item.image || '',
-      title: item.title,
-      description: item.description,
-    }));
+    // Handle category images update
+    const existingCategoryImages = existingService.categoryname.map(item => item.image);
+    const newCategoryImages = req.files?.['categoryImages'] || [];
+    
+    // Upload new category images
+    const uploadedCategoryImages = await Promise.all(
+      newCategoryImages.map(file => uploadToImageKit(file))
+    );
+
+    // Merge existing and new images
+    const categorynameWithImages = parsedCategoryData.map((item, index) => {
+      // Use new uploaded image if available, otherwise keep existing or use item.image
+      const image = uploadedCategoryImages[index] || 
+                   (item.image && item.image.startsWith('http') ? item.image : '') || 
+                   existingCategoryImages[index] || '';
+      
+      return {
+        image,
+        title: item.title || '',
+        description: item.description || '',
+      };
+    });
 
     const updatePayload = {
-      servicetitle,
+      servicetitle: servicetitle || existingService.servicetitle,
+      serviceImage: serviceImageUrl,
       titleDescArray: parsedTitleDescArray,
       categoryname: categorynameWithImages,
     };
 
-    if (uploadedServiceImage) updatePayload.serviceImage = uploadedServiceImage;
-
     const updatedServicePage = await ServicePage.findByIdAndUpdate(
-      req.params.id,
+      id,
       updatePayload,
       { new: true }
     );
 
-    if (!updatedServicePage) return res.status(404).json({ error: 'Service Page not found' });
-
-    res.status(200).json({ message: 'Service Page updated successfully', data: updatedServicePage });
+    res.status(200).json({ 
+      message: 'Service Page updated successfully', 
+      data: updatedServicePage 
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error in PUT /update:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      details: error.message 
+    });
   }
 });
 
-// PATCH: Partial Update - Single array item or image
-router.patch('/update-point/:id', upload.single('image'), async (req, res) => {
+// PATCH: Partial Update - Single field or array item
+router.patch('/update/:id', upload.single('image'), async (req, res) => {
   try {
-    const { type, index, field, value } = req.body;
+    const { id } = req.params;
+    const { field, index, value } = req.body;
 
-    const servicePage = await ServicePage.findById(req.params.id);
-    if (!servicePage) return res.status(404).json({ error: 'Service Page not found' });
-
-    // Update titleDescArray
-    if (type === 'titleDescArray') {
-      if (servicePage.titleDescArray[index]) {
-        servicePage.titleDescArray[index] = value;
-      } else {
-        return res.status(400).json({ error: 'Invalid index in titleDescArray' });
-      }
+    const servicePage = await ServicePage.findById(id);
+    if (!servicePage) {
+      return res.status(404).json({ error: 'Service Page not found' });
     }
 
-    // Update categoryname array
-    else if (type === 'categoryname') {
+    // Handle image upload for category
+    if (req.file && field === 'categoryname' && index !== undefined) {
+      const imageUrl = await uploadToImageKit(req.file);
       if (!servicePage.categoryname[index]) {
-        return res.status(400).json({ error: 'Invalid index in categoryname' });
+        servicePage.categoryname[index] = { image: '', title: '', description: '' };
       }
-
-      if (field === 'image' && req.file) {
-        const uploadedImage = await imagekit.upload({
-          file: req.file.buffer,
-          fileName: req.file.originalname,
-        });
-        servicePage.categoryname[index].image = uploadedImage.url;
-      } else if (field === 'title' || field === 'description') {
-        servicePage.categoryname[index][field] = value;
-      } else {
-        return res.status(400).json({ error: 'Invalid field for categoryname update' });
+      servicePage.categoryname[index].image = imageUrl || '';
+    }
+    // Handle regular field updates
+    else if (field && value !== undefined) {
+      // Handle array updates
+      if (index !== undefined) {
+        if (!servicePage[field]) servicePage[field] = [];
+        if (!servicePage[field][index]) {
+          if (field === 'titleDescArray') {
+            servicePage[field][index] = { title: '', description: '' };
+          } else if (field === 'categoryname') {
+            servicePage[field][index] = { image: '', title: '', description: '' };
+          } else {
+            servicePage[field][index] = '';
+          }
+        }
+        
+        if (typeof servicePage[field][index] === 'object') {
+          // Handle nested updates (e.g., titleDescArray[0].title)
+          const subFields = Object.keys(value);
+          subFields.forEach(subField => {
+            servicePage[field][index][subField] = value[subField];
+          });
+        } else {
+          servicePage[field][index] = value;
+        }
+      } 
+      // Handle direct field updates
+      else {
+        servicePage[field] = value;
       }
-    } else {
-      return res.status(400).json({ error: 'Invalid update type' });
     }
 
     await servicePage.save();
-    res.status(200).json({ message: 'Service Page updated successfully', data: servicePage });
+    res.status(200).json({ 
+      message: 'Service Page updated successfully', 
+      data: servicePage 
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error in PATCH /update:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      details: error.message 
+    });
   }
 });
 
@@ -179,7 +218,7 @@ router.get('/get', async (req, res) => {
     const data = await ServicePage.find();
     res.status(200).json({ data });
   } catch (error) {
-    console.error(error);
+    console.error('Error in GET /get:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -188,10 +227,12 @@ router.get('/get', async (req, res) => {
 router.delete('/delete/:id', async (req, res) => {
   try {
     const deleted = await ServicePage.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'Service Page not found' });
+    if (!deleted) {
+      return res.status(404).json({ error: 'Service Page not found' });
+    }
     res.status(200).json({ message: 'Service Page deleted successfully' });
   } catch (error) {
-    console.error(error);
+    console.error('Error in DELETE /delete:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
