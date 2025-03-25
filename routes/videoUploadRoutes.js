@@ -16,21 +16,28 @@ const imagekit = new ImageKit({
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// POST route — Upload video
+// POST — Upload video
 router.post('/upload', upload.single('video'), async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file provided' });
+    }
+
     // Upload video to ImageKit
     const uploadResponse = await imagekit.upload({
       file: req.file.buffer,
       fileName: `${uuidv4()}-${req.file.originalname}`,
       useUniqueFileName: true,
-      folder: '/videos', // Optional: you can organize in a folder on ImageKit
+      folder: '/videos', // Optional folder organization
     });
 
-    // Save URL to DB
-    const newVideo = new VideoUpload({ video: uploadResponse.url });
-    await newVideo.save();
+    // Save URL and fileId to DB
+    const newVideo = new VideoUpload({
+      video: uploadResponse.url,
+      fileId: uploadResponse.fileId, // Store fileId to enable deletion
+    });
 
+    await newVideo.save();
     res.status(201).json({ message: 'Video uploaded successfully', video: newVideo });
   } catch (error) {
     console.error(error);
@@ -38,13 +45,33 @@ router.post('/upload', upload.single('video'), async (req, res) => {
   }
 });
 
-// GET route — Get all uploaded videos
+// GET — Fetch all uploaded videos
 router.get('/get', async (req, res) => {
   try {
     const videos = await VideoUpload.find().sort({ createdAt: -1 });
     res.status(200).json(videos);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch videos' });
+  }
+});
+
+// DELETE — Remove a video by ID
+router.delete('/delete/:id', async (req, res) => {
+  try {
+    const video = await VideoUpload.findById(req.params.id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Delete from ImageKit using fileId
+    await imagekit.deleteFile(video.fileId);
+
+    // Delete from database
+    await VideoUpload.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({ message: 'Video deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete video' });
   }
 });
 
