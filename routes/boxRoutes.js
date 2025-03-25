@@ -23,9 +23,11 @@ router.post('/add', async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
+// GET: Retrieve all boxes
 router.get('/get', async (req, res) => {
     try {
-        const boxes = await Box.find(); // Retrieve all boxes from the database
+        const boxes = await Box.find();
 
         if (!boxes || boxes.length === 0) {
             return res.status(404).json({ error: "No boxes found" });
@@ -39,8 +41,7 @@ router.get('/get', async (req, res) => {
     }
 });
 
-
-// PUT: Update an existing box
+// PUT: Update an existing box (full update)
 router.put('/update/:id', async (req, res) => {
     try {
         const { boxNo, count, title, description } = req.body;
@@ -48,6 +49,29 @@ router.put('/update/:id', async (req, res) => {
         const updatedBox = await Box.findByIdAndUpdate(
             req.params.id,
             { boxNo, count, title, description },
+            { new: true }
+        );
+
+        if (!updatedBox) {
+            return res.status(404).json({ error: "Box not found" });
+        }
+
+        res.status(200).json({ message: "Box updated successfully", data: updatedBox });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// PATCH: Partially update a box
+router.patch('/replace/:id', async (req, res) => {
+    try {
+        const updates = req.body;
+
+        const updatedBox = await Box.findByIdAndUpdate(
+            req.params.id,
+            { $set: updates },
             { new: true }
         );
 
