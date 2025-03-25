@@ -8,3 +8,5 @@ const BoxSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Box', BoxSchema);
+
+//Box route
